@@ -1,0 +1,781 @@
+{
+  "info": {
+    "_postman_id": "pollmaster-api-v1",
+    "name": "PollMaster API v1.0",
+    "description": "Complete Postman collection for PollMaster REST API - Real-time polling and survey platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "🔐 Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Create a new user account"
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"SecurePass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Authenticate user and get JWT tokens"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.tokens) {",
+                  "    pm.environment.set('access_token', jsonData.tokens.accessToken);",
+                  "    pm.environment.set('refresh_token', jsonData.tokens.refreshToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/refresh",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "refresh"]
+            },
+            "description": "Get new access token using refresh token"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "logout"]
+            },
+            "description": "Invalidate current access token"
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Get authenticated user profile"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 Polls",
+      "item": [
+        {
+          "name": "List Polls",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/polls?page=1&limit=20&sort=createdAt:desc",
+              "host": ["{{base_url}}"],
+              "path": ["polls"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "sort",
+                  "value": "createdAt:desc"
+                }
+              ]
+            },
+            "description": "Get paginated list of polls"
+          }
+        },
+        {
+          "name": "Create Poll",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"What's your favorite programming language?\",\n  \"description\": \"Help us understand the developer community preferences\",\n  \"settings\": {\n    \"allowMultipleVotes\": false,\n    \"showResultsAfterVoting\": true,\n    \"allowComments\": false\n  },\n  \"questions\": [\n    {\n      \"text\": \"Which programming language do you prefer?\",\n      \"type\": \"single_choice\",\n      \"required\": true,\n      \"order\": 0,\n      \"options\": [\n        {\"text\": \"JavaScript\", \"order\": 0},\n        {\"text\": \"Python\", \"order\": 1},\n        {\"text\": \"Go\", \"order\": 2},\n        {\"text\": \"Rust\", \"order\": 3}\n      ]\n    },\n    {\n      \"text\": \"How would you rate your experience?\",\n      \"type\": \"rating\",\n      \"required\": true,\n      \"order\": 1,\n      \"settings\": {\n        \"minRating\": 1,\n        \"maxRating\": 5\n      }\n    }\n  ],\n  \"expiresAt\": \"2026-12-31T23:59:59Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/polls",
+              "host": ["{{base_url}}"],
+              "path": ["polls"]
+            },
+            "description": "Create a new poll with questions and options"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.environment.set('poll_id', jsonData.id);",
+                  "    pm.environment.set('share_token', jsonData.shareToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Poll Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}"]
+            },
+            "description": "Get detailed poll information"
+          }
+        },
+        {
+          "name": "Update Poll",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Poll Title\",\n  \"description\": \"Updated description\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}"]
+            },
+            "description": "Update poll details (only if no votes)"
+          }
+        },
+        {
+          "name": "Delete Poll",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}"]
+            },
+            "description": "Permanently delete a poll"
+          }
+        },
+        {
+          "name": "Duplicate Poll",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newTitle\": \"Copy of Original Poll\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}/duplicate",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}", "duplicate"]
+            },
+            "description": "Create a copy of an existing poll"
+          }
+        },
+        {
+          "name": "Activate Poll",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}/activate",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}", "activate"]
+            },
+            "description": "Change poll status from draft to active"
+          }
+        },
+        {
+          "name": "Close Poll",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}/close",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}", "close"]
+            },
+            "description": "Manually close an active poll"
+          }
+        },
+        {
+          "name": "Get Share Link",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}/share",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}", "share"]
+            },
+            "description": "Get shareable URL, embed code, and QR code"
+          }
+        }
+      ]
+    },
+    {
+      "name": "❓ Questions",
+      "item": [
+        {
+          "name": "List Questions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}/questions",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}", "questions"]
+            }
+          }
+        },
+        {
+          "name": "Add Question",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"What is your experience level?\",\n  \"type\": \"single_choice\",\n  \"required\": true,\n  \"options\": [\n    {\"text\": \"Beginner\"},\n    {\"text\": \"Intermediate\"},\n    {\"text\": \"Advanced\"}\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}/questions",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}", "questions"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.environment.set('question_id', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Question",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Updated question text\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}/questions/{{question_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}", "questions", "{{question_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Question",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}/questions/{{question_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}", "questions", "{{question_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🗳️ Voting",
+      "item": [
+        {
+          "name": "Submit Vote (Public)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"responses\": [\n    {\n      \"questionId\": \"{{question_id}}\",\n      \"optionIds\": [\"{{option_id}}\"],\n      \"ratingValue\": 4\n    }\n  ],\n  \"voterInfo\": {\n    \"name\": \"Anonymous Voter\",\n    \"email\": \"voter@example.com\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/public/polls/{{share_token}}/vote",
+              "host": ["{{base_url}}"],
+              "path": ["public", "polls", "{{share_token}}", "vote"]
+            },
+            "description": "Cast a vote on a public poll (no auth required)"
+          }
+        },
+        {
+          "name": "Get Poll Votes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}/votes",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}", "votes"]
+            },
+            "description": "Get all votes for a poll (creator only)"
+          }
+        },
+        {
+          "name": "Submit Bulk Votes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"votes\": [\n    {\n      \"responses\": [{\n        \"questionId\": \"{{question_id}}\",\n        \"optionIds\": [\"{{option_id}}\"]\n      }]\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}/votes/bulk",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}", "votes", "bulk"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📈 Results & Analytics",
+      "item": [
+        {
+          "name": "Get Public Results",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/public/polls/{{share_token}}/results",
+              "host": ["{{base_url}}"],
+              "path": ["public", "polls", "{{share_token}}", "results"]
+            },
+            "description": "View poll results with percentages (public)"
+          }
+        },
+        {
+          "name": "Get Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}/analytics",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}", "analytics"]
+            },
+            "description": "Get detailed analytics for a poll"
+          }
+        },
+        {
+          "name": "Export Data (JSON)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}/analytics/export?format=json",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}", "analytics", "export"],
+              "query": [
+                {
+                  "key": "format",
+                  "value": "json"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Export Data (CSV)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}/analytics/export?format=csv",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}", "analytics", "export"],
+              "query": [
+                {
+                  "key": "format",
+                  "value": "csv"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📋 Templates",
+      "item": [
+        {
+          "name": "List Templates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/templates?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["templates"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Template",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/templates/{{template_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["templates", "{{template_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Use Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"My New Survey\",\n  \"customizations\": {}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/templates/{{template_id}}/use",
+              "host": ["{{base_url}}"],
+              "path": ["templates", "{{template_id}}", "use"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔴 Real-time",
+      "item": [
+        {
+          "name": "Stream Results (SSE)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/polls/{{poll_id}}/stream",
+              "host": ["{{base_url}}"],
+              "path": ["polls", "{{poll_id}}", "stream"]
+            },
+            "description": "Server-sent events for real-time vote updates"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏥 Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Check API health status"
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://pollmaster-bhogarai.azurewebsites.net/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "poll_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "share_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "question_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "option_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "template_id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
