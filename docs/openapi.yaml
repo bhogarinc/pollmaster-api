@@ -1,0 +1,1620 @@
+openapi: 3.0.3
+info:
+  title: PollMaster API
+  description: |
+    Real-time polling and survey REST API platform. Create polls with multiple choice questions, 
+    share via unique links, get real-time vote counting and tallying, view results with percentage 
+    breakdowns, set poll expiration dates, and track voters. Includes poll templates and duplicate poll features.
+  version: 1.0.0
+  contact:
+    name: PollMaster Support
+    email: support@pollmaster.io
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://pollmaster-bhogarai.azurewebsites.net/api/v1
+    description: Production server (Azure App Service)
+  - url: http://localhost:3000/api/v1
+    description: Local development server
+
+security:
+  - BearerAuth: []
+
+paths:
+  # ==================== AUTHENTICATION ====================
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new user
+      description: Create a new user account with email and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              email: "user@example.com"
+              password: "SecurePass123!"
+              firstName: "John"
+              lastName: "Doe"
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and return JWT tokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: "user@example.com"
+              password: "SecurePass123!"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Get a new access token using refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  example: "eyJhbGciOiJIUzI1NiIs..."
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                  expiresIn:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      description: Invalidate current access token
+      responses:
+        '204':
+          description: Logout successful
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user
+      description: Retrieve authenticated user profile
+      responses:
+        '200':
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==================== POLLS ====================
+  /polls:
+    get:
+      tags:
+        - Polls
+      summary: List polls
+      description: Get paginated list of polls with filtering and sorting
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, active, closed, expired]
+        - name: search
+          in: query
+          description: Search in title and description
+          schema:
+            type: string
+        - name: isTemplate
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of polls
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPolls'
+
+    post:
+      tags:
+        - Polls
+      summary: Create poll
+      description: Create a new poll with questions and options
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePollRequest'
+      responses:
+        '201':
+          description: Poll created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /polls/{pollId}:
+    get:
+      tags:
+        - Polls
+      summary: Get poll by ID
+      description: Retrieve detailed poll information including questions and vote counts
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+      responses:
+        '200':
+          description: Poll details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PollDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Polls
+      summary: Update poll
+      description: Update poll details (only if no votes cast)
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePollRequest'
+      responses:
+        '200':
+          description: Poll updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: Cannot modify poll with existing votes
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Polls
+      summary: Delete poll
+      description: Permanently delete a poll and all associated data
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+      responses:
+        '204':
+          description: Poll deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /polls/{pollId}/duplicate:
+    post:
+      tags:
+        - Polls
+      summary: Duplicate poll
+      description: Create a copy of an existing poll
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newTitle:
+                  type: string
+                  description: Optional new title for the duplicated poll
+      responses:
+        '201':
+          description: Poll duplicated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /polls/{pollId}/activate:
+    post:
+      tags:
+        - Polls
+      summary: Activate poll
+      description: Change poll status from draft to active
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+      responses:
+        '200':
+          description: Poll activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+        '400':
+          description: Poll cannot be activated
+
+  /polls/{pollId}/close:
+    post:
+      tags:
+        - Polls
+      summary: Close poll
+      description: Manually close an active poll
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+      responses:
+        '200':
+          description: Poll closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+
+  /polls/{pollId}/share:
+    get:
+      tags:
+        - Polls
+      summary: Get shareable link
+      description: Get unique shareable URL for the poll
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+      responses:
+        '200':
+          description: Share information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  shareUrl:
+                    type: string
+                    format: uri
+                  embedCode:
+                    type: string
+                  qrCode:
+                    type: string
+                    format: uri
+
+  # ==================== PUBLIC POLL ACCESS ====================
+  /public/polls/{shareToken}:
+    get:
+      tags:
+        - Public Access
+      summary: Get public poll
+      description: Retrieve poll details for voting (no authentication required)
+      security: []
+      parameters:
+        - name: shareToken
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Public poll view
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicPollView'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /public/polls/{shareToken}/vote:
+    post:
+      tags:
+        - Public Access
+      summary: Submit vote
+      description: Cast a vote on a public poll
+      security: []
+      parameters:
+        - name: shareToken
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitVoteRequest'
+      responses:
+        '201':
+          description: Vote recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteReceipt'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: Voting not allowed (poll closed, already voted, etc.)
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /public/polls/{shareToken}/results:
+    get:
+      tags:
+        - Public Access
+      summary: Get poll results
+      description: View poll results with vote counts and percentages
+      security: []
+      parameters:
+        - name: shareToken
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Poll results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PollResults'
+
+  # ==================== QUESTIONS ====================
+  /polls/{pollId}/questions:
+    get:
+      tags:
+        - Questions
+      summary: List poll questions
+      description: Get all questions for a specific poll
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+      responses:
+        '200':
+          description: List of questions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Question'
+
+    post:
+      tags:
+        - Questions
+      summary: Add question
+      description: Add a new question to a poll
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateQuestionRequest'
+      responses:
+        '201':
+          description: Question added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Question'
+
+  /polls/{pollId}/questions/{questionId}:
+    get:
+      tags:
+        - Questions
+      summary: Get question
+      description: Retrieve question details
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+        - $ref: '#/components/parameters/QuestionIdParam'
+      responses:
+        '200':
+          description: Question details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionDetail'
+
+    put:
+      tags:
+        - Questions
+      summary: Update question
+      description: Update question text, type, or options
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+        - $ref: '#/components/parameters/QuestionIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateQuestionRequest'
+      responses:
+        '200':
+          description: Question updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Question'
+
+    delete:
+      tags:
+        - Questions
+      summary: Delete question
+      description: Remove a question from the poll
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+        - $ref: '#/components/parameters/QuestionIdParam'
+      responses:
+        '204':
+          description: Question deleted
+
+  # ==================== OPTIONS ====================
+  /polls/{pollId}/questions/{questionId}/options:
+    get:
+      tags:
+        - Options
+      summary: List options
+      description: Get all options for a question
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+        - $ref: '#/components/parameters/QuestionIdParam'
+      responses:
+        '200':
+          description: List of options
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Option'
+
+    post:
+      tags:
+        - Options
+      summary: Add option
+      description: Add a new option to a question
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+        - $ref: '#/components/parameters/QuestionIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOptionRequest'
+      responses:
+        '201':
+          description: Option added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Option'
+
+  /polls/{pollId}/questions/{questionId}/options/{optionId}:
+    put:
+      tags:
+        - Options
+      summary: Update option
+      description: Update option text
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+        - $ref: '#/components/parameters/QuestionIdParam'
+        - $ref: '#/components/parameters/OptionIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOptionRequest'
+      responses:
+        '200':
+          description: Option updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Option'
+
+    delete:
+      tags:
+        - Options
+      summary: Delete option
+      description: Remove an option
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+        - $ref: '#/components/parameters/QuestionIdParam'
+        - $ref: '#/components/parameters/OptionIdParam'
+      responses:
+        '204':
+          description: Option deleted
+
+  # ==================== VOTES ====================
+  /polls/{pollId}/votes:
+    get:
+      tags:
+        - Votes
+      summary: Get poll votes
+      description: Retrieve all votes for a poll (creator only)
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Paginated votes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedVotes'
+
+  /polls/{pollId}/votes/bulk:
+    post:
+      tags:
+        - Votes
+      summary: Submit bulk votes
+      description: Submit multiple votes at once
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkVoteRequest'
+      responses:
+        '201':
+          description: Votes recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  successful:
+                    type: integer
+                  failed:
+                    type: integer
+                  receipts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/VoteReceipt'
+
+  # ==================== ANALYTICS ====================
+  /polls/{pollId}/analytics:
+    get:
+      tags:
+        - Analytics
+      summary: Get poll analytics
+      description: Retrieve detailed analytics for a poll
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+      responses:
+        '200':
+          description: Analytics data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PollAnalytics'
+
+  /polls/{pollId}/analytics/export:
+    get:
+      tags:
+        - Analytics
+      summary: Export poll data
+      description: Export poll results in various formats
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [csv, json, xlsx]
+            default: json
+      responses:
+        '200':
+          description: Exported data
+          content:
+            application/json:
+              schema:
+                type: object
+            text/csv:
+              schema:
+                type: string
+
+  # ==================== TEMPLATES ====================
+  /templates:
+    get:
+      tags:
+        - Templates
+      summary: List templates
+      description: Get all available poll templates
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [survey, quiz, feedback, voting, event, other]
+      responses:
+        '200':
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTemplates'
+
+  /templates/{templateId}:
+    get:
+      tags:
+        - Templates
+      summary: Get template
+      description: Retrieve template details
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Template details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Template'
+
+  /templates/{templateId}/use:
+    post:
+      tags:
+        - Templates
+      summary: Use template
+      description: Create a new poll from a template
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                customizations:
+                  type: object
+      responses:
+        '201':
+          description: Poll created from template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Poll'
+
+  # ==================== REAL-TIME ====================
+  /polls/{pollId}/stream:
+    get:
+      tags:
+        - Real-time
+      summary: Stream results
+      description: Server-sent events for real-time vote updates
+      parameters:
+        - $ref: '#/components/parameters/PollIdParam'
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  # ==================== HEALTH ====================
+  /health:
+    get:
+      tags:
+        - System
+      summary: Health check
+      description: Check API health status
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded]
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /auth/login or /auth/refresh
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: Page number (1-based)
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    LimitParam:
+      name: limit
+      in: query
+      description: Number of items per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+    SortParam:
+      name: sort
+      in: query
+      description: Sort field and direction (e.g., createdAt:desc)
+      schema:
+        type: string
+        default: createdAt:desc
+
+    PollIdParam:
+      name: pollId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    QuestionIdParam:
+      name: questionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    OptionIdParam:
+      name: optionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    # -------------------- AUTH SCHEMAS --------------------
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - firstName
+        - lastName
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]'
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        tokens:
+          type: object
+          properties:
+            accessToken:
+              type: string
+            refreshToken:
+              type: string
+            expiresIn:
+              type: integer
+              description: Access token expiration in seconds
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [user, admin]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # -------------------- POLL SCHEMAS --------------------
+    CreatePollRequest:
+      type: object
+      required:
+        - title
+        - questions
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        settings:
+          $ref: '#/components/schemas/PollSettings'
+        questions:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/CreateQuestionRequest'
+        expiresAt:
+          type: string
+          format: date-time
+        isTemplate:
+          type: boolean
+          default: false
+        templateCategory:
+          type: string
+          enum: [survey, quiz, feedback, voting, event, other]
+
+    UpdatePollRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        settings:
+          $ref: '#/components/schemas/PollSettings'
+        expiresAt:
+          type: string
+          format: date-time
+
+    PollSettings:
+      type: object
+      properties:
+        allowMultipleVotes:
+          type: boolean
+          default: false
+        requireAuthentication:
+          type: boolean
+          default: false
+        showResultsAfterVoting:
+          type: boolean
+          default: true
+        allowComments:
+          type: boolean
+          default: false
+        shuffleQuestions:
+          type: boolean
+          default: false
+        shuffleOptions:
+          type: boolean
+          default: false
+        ipRestriction:
+          type: boolean
+          default: false
+        oneVotePerIp:
+          type: boolean
+          default: true
+
+    Poll:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [draft, active, closed, expired]
+        shareToken:
+          type: string
+        settings:
+          $ref: '#/components/schemas/PollSettings'
+        totalVotes:
+          type: integer
+        uniqueVoters:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+          format: uuid
+        isTemplate:
+          type: boolean
+
+    PollDetail:
+      allOf:
+        - $ref: '#/components/schemas/Poll'
+        - type: object
+          properties:
+            questions:
+              type: array
+              items:
+                $ref: '#/components/schemas/Question'
+
+    PublicPollView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+        settings:
+          type: object
+          properties:
+            allowMultipleVotes:
+              type: boolean
+            showResultsAfterVoting:
+              type: boolean
+            allowComments:
+              type: boolean
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicQuestionView'
+        totalVotes:
+          type: integer
+        expiresAt:
+          type: string
+          format: date-time
+
+    PublicQuestionView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        text:
+          type: string
+        type:
+          type: string
+          enum: [single_choice, multiple_choice, text, rating]
+        required:
+          type: boolean
+        options:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              text:
+                type: string
+              order:
+                type: integer
+
+    PaginatedPolls:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Poll'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    # -------------------- QUESTION SCHEMAS --------------------
+    CreateQuestionRequest:
+      type: object
+      required:
+        - text
+        - type
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 500
+        type:
+          type: string
+          enum: [single_choice, multiple_choice, text, rating]
+        required:
+          type: boolean
+          default: true
+        order:
+          type: integer
+          minimum: 0
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateOptionRequest'
+        settings:
+          type: object
+          properties:
+            minRating:
+              type: integer
+            maxRating:
+              type: integer
+            allowMultiple:
+              type: boolean
+            maxSelections:
+              type: integer
+
+    UpdateQuestionRequest:
+      type: object
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 500
+        required:
+          type: boolean
+        order:
+          type: integer
+        settings:
+          type: object
+
+    Question:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        text:
+          type: string
+        type:
+          type: string
+          enum: [single_choice, multiple_choice, text, rating]
+        required:
+          type: boolean
+        order:
+          type: integer
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/Option'
+        settings:
+          type: object
+
+    QuestionDetail:
+      allOf:
+        - $ref: '#/components/schemas/Question'
+        - type: object
+          properties:
+            voteCount:
+              type: integer
+
+    # -------------------- OPTION SCHEMAS --------------------
+    CreateOptionRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 200
+        order:
+          type: integer
+
+    UpdateOptionRequest:
+      type: object
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 200
+        order:
+          type: integer
+
+    Option:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        text:
+          type: string
+        order:
+          type: integer
+        voteCount:
+          type: integer
+
+    # -------------------- VOTE SCHEMAS --------------------
+    SubmitVoteRequest:
+      type: object
+      required:
+        - responses
+      properties:
+        responses:
+          type: array
+          items:
+            $ref: '#/components/schemas/VoteResponse'
+        voterInfo:
+          type: object
+          properties:
+            name:
+              type: string
+            email:
+              type: string
+              format: email
+
+    VoteResponse:
+      type: object
+      required:
+        - questionId
+      properties:
+        questionId:
+          type: string
+          format: uuid
+        optionIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        textResponse:
+          type: string
+          maxLength: 2000
+        ratingValue:
+          type: integer
+
+    BulkVoteRequest:
+      type: object
+      required:
+        - votes
+      properties:
+        votes:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmitVoteRequest'
+
+    VoteReceipt:
+      type: object
+      properties:
+        voteId:
+          type: string
+          format: uuid
+        pollId:
+          type: string
+          format: uuid
+        votedAt:
+          type: string
+          format: date-time
+        confirmationCode:
+          type: string
+
+    PaginatedVotes:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vote'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    Vote:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        responses:
+          type: array
+          items:
+            type: object
+            properties:
+              questionId:
+                type: string
+                format: uuid
+              optionIds:
+                type: array
+                items:
+                  type: string
+                  format: uuid
+              textResponse:
+                type: string
+              ratingValue:
+                type: integer
+        voterInfo:
+          type: object
+          properties:
+            name:
+              type: string
+            email:
+              type: string
+            ipAddress:
+              type: string
+        votedAt:
+          type: string
+          format: date-time
+
+    # -------------------- RESULTS SCHEMAS --------------------
+    PollResults:
+      type: object
+      properties:
+        pollId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        totalVotes:
+          type: integer
+        uniqueVoters:
+          type: integer
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuestionResults'
+        lastUpdated:
+          type: string
+          format: date-time
+
+    QuestionResults:
+      type: object
+      properties:
+        questionId:
+          type: string
+          format: uuid
+        text:
+          type: string
+        type:
+          type: string
+        totalResponses:
+          type: integer
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/OptionResult'
+        textResponses:
+          type: array
+          items:
+            type: object
+            properties:
+              response:
+                type: string
+              count:
+                type: integer
+        ratingStats:
+          type: object
+          properties:
+            average:
+              type: number
+            min:
+              type: integer
+            max:
+              type: integer
+            distribution:
+              type: object
+
+    OptionResult:
+      type: object
+      properties:
+        optionId:
+          type: string
+          format: uuid
+        text:
+          type: string
+        voteCount:
+          type: integer
+        percentage:
+          type: number
+          format: float
+
+    # -------------------- ANALYTICS SCHEMAS --------------------
+    PollAnalytics:
+      type: object
+      properties:
+        pollId:
+          type: string
+          format: uuid
+        overview:
+          type: object
+          properties:
+            totalVotes:
+              type: integer
+            uniqueVoters:
+              type: integer
+            completionRate:
+              type: number
+            averageTimeToComplete:
+              type: integer
+        timeSeries:
+          type: array
+          items:
+            type: object
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+              voteCount:
+                type: integer
+        demographics:
+          type: object
+          properties:
+            topLocations:
+              type: array
+              items:
+                type: object
+        deviceBreakdown:
+          type: object
+          properties:
+            desktop:
+              type: integer
+            mobile:
+              type: integer
+            tablet:
+              type: integer
+
+    # -------------------- TEMPLATE SCHEMAS --------------------
+    Template:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+          enum: [survey, quiz, feedback, voting, event, other]
+        previewImage:
+          type: string
+          format: uri
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Question'
+        settings:
+          $ref: '#/components/schemas/PollSettings'
+        usageCount:
+          type: integer
+
+    PaginatedTemplates:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Template'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    # -------------------- COMMON SCHEMAS --------------------
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalItems:
+          type: integer
+        totalPages:
+          type: integer
+        hasNextPage:
+          type: boolean
+        hasPrevPage:
+          type: boolean
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+        timestamp:
+          type: string
+          format: date-time
+        requestId:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: VALIDATION_ERROR
+            message: Request validation failed
+            details:
+              - field: email
+                message: Invalid email format
+            timestamp: "2024-01-15T10:30:00Z"
+            requestId: "req_123456"
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: UNAUTHORIZED
+            message: Authentication required
+            timestamp: "2024-01-15T10:30:00Z"
+            requestId: "req_123456"
+
+    Forbidden:
+      description: Access denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: FORBIDDEN
+            message: You do not have permission to access this resource
+            timestamp: "2024-01-15T10:30:00Z"
+            requestId: "req_123456"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: NOT_FOUND
+            message: Poll not found
+            timestamp: "2024-01-15T10:30:00Z"
+            requestId: "req_123456"
+
+    RateLimit:
+      description: Too many requests
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: RATE_LIMIT_EXCEEDED
+            message: Too many requests, please try again later
+            timestamp: "2024-01-15T10:30:00Z"
+            requestId: "req_123456"
